@@ -122,7 +122,7 @@ license=('GPL3')
 _depends_nox=('gnutls' 'libxml2' 'jansson')
 depends=("${_depends_nox[@]}" 'harfbuzz' 'libotf')
 makedepends=('git')
-provides=('emacs')
+provides=('emacs' 'emacs-wayland')
 conflicts=('emacs')
 if [[ $IGC == "YES" ]]; then
   source=("emacs-git::git+https://github.com/emacs-mirror/emacs.git#branch=feature/igc3"
