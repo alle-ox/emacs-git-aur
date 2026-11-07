@@ -1,0 +1,54 @@
+name: build
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  schedule:
+    - cron: "0 4 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container:
+      image: archlinux:base-devel
+    steps:
+      - name: Prepare container
+        run: |
+          pacman -Syu --noconfirm --disable-download-timeout
+          pacman -S --needed --noconfirm --disable-download-timeout git
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create build user
+        run: |
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          chmod 440 /etc/sudoers.d/builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+
+      - name: Build package
+        run: |
+          sudo -H -u builder env MAKEFLAGS="-j$(nproc)" makepkg -s --noconfirm --nocheck
+
+      - name: List package
+        run: ls -lh ./*.pkg.tar.zst
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: emacs-git
+          path: ./*.pkg.tar.zst
+          if-no-files-found: error
+          retention-days: 14
