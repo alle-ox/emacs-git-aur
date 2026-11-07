@@ -105,7 +105,7 @@ depends=("${depends_nox[@]}" 'harfbuzz' 'libotf')
 makedepends=('git')
 provides=('emacs')
 conflicts=('emacs')
-source=("emacs-git::git+https://https.git.savannah.gnu.org/git/emacs.git"
+source=("emacs-git::git+https://github.com/emacs-mirror/emacs.git"
         "nemacs")
 options=(!strip)
 install=emacs-git.install
