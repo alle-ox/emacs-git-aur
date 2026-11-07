@@ -26,7 +26,9 @@ CLANG=            # Use clang.
 
 GOLD=             # Use the gold linker.
 
-LTO=              # Enable link-time optimization. Still experimental.
+LTO="YES"         # Enable link-time optimization. Still experimental.
+
+MOLD="YES"        # Use the mold linker (adds -fuse-ld=mold and runs make under mold).
 
 IGC="YES"         # Use the MPS-based incremental/generational GC. Builds the
                   # feature/igc3 branch with --with-mps=yes. MPS is bundled in
@@ -55,7 +57,7 @@ GPM=              # Mouse support in Linux console using gpmd.
 
 NOTKIT=           # Use no toolkit widgets. Like B&W Twm (001d sk00l).
                   # Bitmap fonts only, 1337!
-               
+
 PGTK="YES"        # Use native GTK3 build. Supports Wayland, yay! Still
                   # has some problems if running under Xorg. Remember,
                   # this is my personal build file!
@@ -75,19 +77,21 @@ XI2="YES"         # Use Xinput2 support.
 
 ALSA=             # Linux sound support.
 
+DBUS="YES"        # D-Bus support.
+
 NOCAIRO=          # Disable here. 
-               
+
 XWIDGETS="YES"         # Use GTK+ widgets pulled from webkit2gtk. Usable.
 
 SITTER="YES"      # Use tree-sitter incremental language parsing.
-               
+
 NOSQLITE3=        # Disable sqlite3 support.
 
 DOCS_HTML=        # Generate and install html documentation.
-               
-DOCS_PDF=         # Generate and install pdf documentation. You need
+
+DOCS_PDF="YES"    # Generate and install pdf documentation. You need
                   # a TeX installation. I'm partial to upstream TeXLive.
-               
+
 NOGZ="YES"        # Don't compress .el files. (Gain is neglible, IMHO)
 
 ################################################################################
@@ -115,8 +119,8 @@ fi
 arch=('x86_64')
 url="http://www.gnu.org/software/emacs/"
 license=('GPL3')
-depends_nox=('gnutls' 'libxml2' 'jansson')
-depends=("${depends_nox[@]}" 'harfbuzz' 'libotf')
+_depends_nox=('gnutls' 'libxml2' 'jansson')
+depends=("${_depends_nox[@]}" 'harfbuzz' 'libotf')
 makedepends=('git')
 provides=('emacs')
 conflicts=('emacs')
@@ -158,11 +162,32 @@ if [[ $CLANG == "YES" ]]; then
   makedepends+=( 'clang' 'lld' 'llvm') ;
 fi
 
+if [[ $MOLD == "YES" ]]; then
+  if [[ $GOLD == "YES" ]]; then
+    echo "";
+    echo "GOLD and MOLD are mutually exclusive.";
+    echo "";
+    exit 1;
+  fi
+  makedepends+=( 'mold' );
+  export LD=/usr/bin/mold;
+  export CFLAGS+=" -fuse-ld=mold";
+  export CXXFLAGS+=" -fuse-ld=mold";
+fi
+
 if [[ $JIT == "YES" ]]; then
   if [[ $CLI == "YES" ]]; then
-    depends_nox+=( 'libgccjit' );
+    _depends_nox+=( 'libgccjit' );
   else
     depends+=( 'libgccjit' );
+  fi
+fi
+
+if [[ $DBUS == "YES" ]]; then
+  if [[ $CLI == "YES" ]]; then
+    _depends_nox+=( 'dbus' );
+  else
+    depends+=( 'dbus' );
   fi
 fi
 
@@ -171,7 +196,7 @@ if [[ ! $CLI == "YES" ]]; then
 fi
 
 if [[ $CLI == "YES" ]]; then
-  depends=("${depends_nox[@]}");
+  depends=("${_depends_nox[@]}");
 elif [[ $NOTKIT == "YES" ]]; then
   depends+=( 'dbus' 'hicolor-icon-theme' 'libxinerama' 'libxrandr' 'lcms2' 'librsvg' 'libxfixes' 'libxi' 'libsm' 'xcb-util' 'libxcb' );
   makedepends+=( 'xorgproto' );
@@ -180,10 +205,10 @@ elif [[ $LUCID == "YES" ]]; then
   makedepends+=( 'xorgproto' );
 elif [[ $GTK3 == "YES" ]]; then
   depends+=( 'gtk3' 'libsm' 'xcb-util' 'libxcb' );
-  makedepends+=( 'xorgproto' 'libxi' );
+  makedepends+=( 'xorgproto' );
 elif [[ $PGTK == "YES" ]]; then
   depends+=( 'gtk3' 'libsm' 'xcb-util' 'libxcb' );
-  makedepends+=( 'xorgproto' 'libxi' );
+  makedepends+=( 'xorgproto' );
 fi
 
 if [[ ! $NOX == "YES" ]] && [[ ! $CLI == "YES" ]]; then
@@ -194,7 +219,7 @@ fi
 
 if [[ $ALSA == "YES" ]]; then
   if [[ $CLI == "YES" ]]; then
-    depends_nox+=( 'alsa-lib' );
+    _depends_nox+=( 'alsa-lib' );
   else
     depends+=( 'alsa-lib' );
   fi
@@ -219,7 +244,7 @@ fi
 
 if [[ $SITTER == "YES" ]]; then
   if [[ $CLI == "YES" ]]; then
-    depends_nox+=( 'tree-sitter' );
+    _depends_nox+=( 'tree-sitter' );
   else
     depends+=( 'tree-sitter' );
   fi
@@ -229,7 +254,7 @@ if [[ $NOSQLITE3 == "YES" ]]; then
   true
 else
   if [[ $CLI == "YES" ]]; then
-    depends_nox+=( 'sqlite3' );
+    _depends_nox+=( 'sqlite3' );
   else
     depends+=( 'sqlite3' );
   fi
@@ -237,7 +262,7 @@ fi
 
 if [[ $GPM == "YES" ]]; then
   if [[ $CLI == "YES" ]]; then
-    depends_nox+=( 'gpm' );
+    _depends_nox+=( 'gpm' );
   else
     depends+=( 'gpm' );
   fi
@@ -285,95 +310,106 @@ build() {
     --with-gameuser=:games
     --with-modules
     --without-m17n-flt
-# Beware https://debbugs.gnu.org/cgi/bugreport.cgi?bug=25228
-# dconf and gconf break font settings you set in ~/.emacs.
-# If you insist you'll need to read that bug report in *full*.
-# Good luck!
-   --without-gconf
+    # Beware https://debbugs.gnu.org/cgi/bugreport.cgi?bug=25228
+    # dconf and gconf break font settings you set in ~/.emacs.
+    # If you insist you'll need to read that bug report in *full*.
+    # Good luck!
+    --without-gconf
+    --without-gsettings
   )
 
-################################################################################
+  ################################################################################
 
-################################################################################
+  ################################################################################
 
-if [[ $CLANG == "YES" ]]; then
-  _conf+=( '--enable-autodepend' );
-fi
+  if [[ $CLANG == "YES" ]]; then
+    _conf+=( '--enable-autodepend' );
+  fi
 
-if [[ $LTO == "YES" ]]; then
-  _conf+=( '--enable-link-time-optimization' );
-fi
+  if [[ $LTO == "YES" ]]; then
+    _conf+=( '--enable-link-time-optimization' );
+  fi
 
-if [[ $JIT == "YES" ]]; then
-  _conf+=( '--with-native-compilation=yes' );
-fi
   if [[ $IGC == "YES" ]]; then
     _conf+=( '--with-mps=yes' );
   fi
 
-if [[ $JIT == "YES" ]] && [[ $AOT == "YES" ]]; then
-  _conf+=( '--with-native-compilation=aot' );
-fi
+  if [[ $JIT == "YES" ]]; then
+    _conf+=( '--with-native-compilation=yes' );
+  fi
 
-if [[ ! $JIT == "YES" ]] && [[ ! $AOT == "YES" ]]; then
-  _conf+=( '--with-native-compilation=no' );
-fi
+  if [[ $JIT == "YES" ]] && [[ $AOT == "YES" ]]; then
+    _conf+=( '--with-native-compilation=aot' );
+  fi
 
-if [[ $XI2 == "YES" ]]; then
-  _conf+=( '--with-xinput2' );
-fi
+  if [[ ! $JIT == "YES" ]] && [[ ! $AOT == "YES" ]]; then
+    _conf+=( '--with-native-compilation=no' );
+  fi
 
-if [[ $CLI == "YES" ]]; then
-  _conf+=( '--without-x' '--with-x-toolkit=no' '--without-xft' '--without-lcms2' '--without-rsvg' '--without-jpeg' '--without-gif' '--without-tiff' '--without-png' );
-elif [[ $NOTKIT == "YES" ]]; then
-  _conf+=( '--with-x-toolkit=no' '--without-toolkit-scroll-bars' '--without-xft' '--without-xaw3d' );
-elif [[ $LUCID == "YES" ]]; then
-  _conf+=( '--with-x-toolkit=lucid' '--with-xft' '--with-xaw3d' );
-elif [[ $GTK3 == "YES" ]]; then
-  _conf+=( '--with-x-toolkit=gtk3' '--without-xaw3d' );
-elif [[ $PGTK == "YES" ]]; then
-  _conf+=( '--with-pgtk' '--without-xaw3d' );
-fi
+  if [[ $XI2 == "YES" ]]; then
+    _conf+=( '--with-xinput2' );
+  fi
 
-if [[ ! $PGTK == "YES" ]]; then
-    _conf+=( '--without-gsettings' ) :
-fi
+  if [[ $CLI == "YES" ]]; then
+    _conf+=( '--without-x' '--with-x-toolkit=no' '--without-xft' '--without-lcms2' '--without-rsvg' '--without-jpeg' '--without-gif' '--without-tiff' '--without-png' );
+  elif [[ $NOTKIT == "YES" ]]; then
+    _conf+=( '--with-x-toolkit=no' '--without-toolkit-scroll-bars' '--without-xft' '--without-xaw3d' );
+  elif [[ $LUCID == "YES" ]]; then
+    _conf+=( '--with-x-toolkit=lucid' '--with-xft' '--with-xaw3d' );
+  elif [[ $GTK3 == "YES" ]]; then
+    _conf+=( '--with-x-toolkit=gtk3' '--without-xaw3d' );
+  elif [[ $PGTK == "YES" ]]; then
+    _conf+=( '--with-pgtk' '--without-xaw3d' );
+  fi
 
-if [[ $NOCAIRO == "YES" || $CLI == "YES" || $NOTKIT == "YES" || $LUCID == "YES" ]]; then
-  _conf+=( '--without-cairo' );
-fi
+  if [[ ! $PGTK == "YES" ]]; then
+      _conf+=( '--without-gsettings' ) :
+  fi
 
-if [[ $ALSA == "YES" ]]; then
-    _conf+=( '--with-sound=alsa' );
-else
-    _conf+=( '--with-sound=no' );
-fi
+  if [[ $NOCAIRO == "YES" || $CLI == "YES" || $NOTKIT == "YES" || $LUCID == "YES" ]]; then
+    _conf+=( '--without-cairo' );
+  fi
 
-if [[ $XWIDGETS == "YES" ]]; then
-  _conf+=( '--with-xwidgets' );
-fi
+  if [[ $ALSA == "YES" ]]; then
+      _conf+=( '--with-sound=alsa' );
+  else
+      _conf+=( '--with-sound=no' );
+  fi
 
-if [[ $SITTER == "YES" ]]; then
-  _conf+=( '--with-tree-sitter' );
-fi
+  if [[ $DBUS == "YES" ]]; then
+      _conf+=( '--with-dbus' );
+  else
+      _conf+=( '--without-dbus' );
+  fi
 
-if [[ $NOSQLITE3 == "YES" ]]; then
-  _conf+=( '---without-sqlite3' );
-fi
+  if [[ $XWIDGETS == "YES" ]]; then
+    _conf+=( '--with-xwidgets' );
+  fi
 
-if [[ $GPM == "YES" ]]; then
-    true
-else
-  _conf+=( '--without-gpm' );
-fi
+  if [[ $SITTER == "YES" ]]; then
+    _conf+=( '--with-tree-sitter' );
+  fi
 
-if [[ $NOGZ == "YES" ]]; then
-  _conf+=( '--without-compress-install' );
-fi
+  if [[ $NOSQLITE3 == "YES" ]]; then
+    _conf+=( '---without-sqlite3' );
+  fi
 
-################################################################################
+  if [[ $GPM == "YES" ]]; then
+      true
+  else
+    _conf+=( '--without-gpm' );
+  fi
 
-################################################################################
+  if [[ $NOGZ == "YES" ]]; then
+    _conf+=( '--without-compress-install' );
+  fi
+
+  # ctags/etags may be provided by other packages, e.g, universal-ctags
+  _conf+=('--program-transform-name=s/\([ec]tags\)/\1.emacs/')
+
+  ################################################################################
+
+  ################################################################################
 
   ../configure "${_conf[@]}"
 
@@ -391,10 +427,15 @@ fi
   #make autoloads
   #cd ../build
 
+  local _make=(make -j"$(nproc)")
+  if [[ $MOLD == "YES" ]]; then
+    _make=(mold -run make -j"$(nproc)")
+  fi
+
   if [[ $TRAMPOLINES == "YES" ]] && [[ $JIT == "YES" ]] ; then
-    make trampolines;
+    "${_make[@]}" trampolines;
   else
-    make
+    "${_make[@]}"
   fi
 
   # Optional documentation formats.
@@ -415,7 +456,7 @@ package() {
   if [[ ! $CLI == "YES" ]]; then
   install -D -m 755 "$srcdir"/nemacs "$pkgdir"/usr/bin/nemacs;
   fi
-  
+
   # Install optional documentation formats
   if [[ $DOCS_HTML == "YES" ]]; then make DESTDIR="$pkgdir/" install-html; fi
   if [[ $DOCS_PDF == "YES" ]]; then make DESTDIR="$pkgdir/" install-pdf; fi
