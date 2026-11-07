@@ -46,10 +46,10 @@ JIT="YES"         # Enable native just-in-time compilation with libgccjit availa
                   #    (setq native-compile-prune-cache t)
                   # to delete old versions.
 
-AOT=              # Compile all elisp at build time. JIT-only means native
+AOT="YES"         # Compile all elisp at build time. JIT-only means native
                   # compilation happens on demand (deferred).
 
-TRAMPOLINES=      # Compile jitted elisp files with trampolines.
+TRAMPOLINES="YES" # Compile jitted elisp files with trampolines.
 
 CLI=              # CLI only binary.
 
