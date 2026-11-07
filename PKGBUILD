@@ -28,6 +28,10 @@ GOLD=             # Use the gold linker.
 
 LTO=              # Enable link-time optimization. Still experimental.
 
+IGC="YES"         # Use the MPS-based incremental/generational GC. Builds the
+                  # feature/igc3 branch with --with-mps=yes. MPS is bundled in
+                  # the Emacs tree, no external package is needed.
+
 JIT="YES"         # Enable native just-in-time compilation with libgccjit available
                   # in core. This compiles only performance critical elisp files.
                   #
@@ -90,13 +94,24 @@ NOGZ="YES"        # Don't compress .el files. (Gain is neglible, IMHO)
 
 ################################################################################
 if [[ $CLI == "YES" ]] ; then
-  pkgname="emacs-nox-git"
+  if [[ $IGC == "YES" ]]; then
+    pkgname="emacs-nox-igc-git"
+  else
+    pkgname="emacs-nox-git"
+  fi
+elif [[ $IGC == "YES" && $PGTK == "YES" ]]; then
+  pkgname="emacs-pgtk-igc-git"
+elif [[ $IGC == "YES" ]]; then
+  pkgname="emacs-igc-git"
 else
   pkgname="emacs-git"
 fi
 pkgver=32.0.50.182500
 pkgrel=1
 pkgdesc="GNU Emacs. Development master branch."
+if [[ $IGC == "YES" ]]; then
+  pkgdesc="GNU Emacs. Development branch with IGC (MPS garbage collector)."
+fi
 arch=('x86_64')
 url="http://www.gnu.org/software/emacs/"
 license=('GPL3')
@@ -105,9 +120,14 @@ depends=("${depends_nox[@]}" 'harfbuzz' 'libotf')
 makedepends=('git')
 provides=('emacs')
 conflicts=('emacs')
-source=("emacs-git::git+https://github.com/emacs-mirror/emacs.git"
-        "nemacs")
-options=(!strip)
+if [[ $IGC == "YES" ]]; then
+  source=("emacs-git::git+https://github.com/emacs-mirror/emacs.git#branch=feature/igc3"
+          "nemacs")
+else
+  source=("emacs-git::git+https://github.com/emacs-mirror/emacs.git"
+          "nemacs")
+fi
+options=(!strip !debug !lto)
 install=emacs-git.install
 b2sums=('SKIP'
         '58e028b439d3c7cf03ea0be617b429a2c54e7aa1b8ca32b5ed489214daaa71e22c323de9662761ad2ce4de58e21dbe45ce6ce198f402686828574f8043d053d0')
@@ -287,6 +307,9 @@ fi
 if [[ $JIT == "YES" ]]; then
   _conf+=( '--with-native-compilation=yes' );
 fi
+  if [[ $IGC == "YES" ]]; then
+    _conf+=( '--with-mps=yes' );
+  fi
 
 if [[ $JIT == "YES" ]] && [[ $AOT == "YES" ]]; then
   _conf+=( '--with-native-compilation=aot' );
