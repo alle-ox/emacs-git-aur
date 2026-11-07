@@ -87,9 +87,9 @@ SITTER="YES"      # Use tree-sitter incremental language parsing.
 
 NOSQLITE3=        # Disable sqlite3 support.
 
-DOCS_HTML=        # Generate and install html documentation.
+DOCS_HTML="YES"   # Generate and install html documentation.
 
-DOCS_PDF="YES"    # Generate and install pdf documentation. You need
+DOCS_PDF=         # Generate and install pdf documentation. You need
                   # a TeX installation. I'm partial to upstream TeXLive.
 
 NOGZ="YES"        # Don't compress .el files. (Gain is neglible, IMHO)
