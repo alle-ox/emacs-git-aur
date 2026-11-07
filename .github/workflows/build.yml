@@ -40,7 +40,16 @@ jobs:
 
       - name: Build package
         run: |
-          sudo -H -u builder env MAKEFLAGS="-j$(nproc)" makepkg -s --noconfirm --nocheck
+          for i in 1 2 3; do
+            echo "::notice::Build attempt $i"
+            if sudo -H -u builder env MAKEFLAGS="-j$(nproc)" makepkg -s --noconfirm --nocheck; then
+              exit 0
+            fi
+            [ "$i" -ge 3 ] && exit 1
+            echo "::notice::makepkg failed; cleaning src/ and retrying in $((i * 20))s"
+            sudo rm -rf src pkg
+            sleep $((i * 20))
+          done
 
       - name: List package
         run: ls -lh ./*.pkg.tar.zst
